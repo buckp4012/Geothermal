@@ -3,13 +3,12 @@ import numpy as np
 from scipy.stats import norm
 import plotly.express as px
 import dash
-from dash import dash_table
+
 from dash import dcc
 from dash import html
 import math
 from dash import dash_table
-from datetime import datetime
-import plotly.graph_objs as go
+
 
 
 df = pd.read_excel('New Geo Tracker.xlsx')
