@@ -13,23 +13,32 @@ import plotly.graph_objs as go
 
 
 df = pd.read_excel('New Geo Tracker.xlsx')
-customers = df['CUSTOMER'].unique()
+customers = df['Customer'].unique()
+df['INSTALL DATE'] = pd.to_datetime(df['INSTALL DATE']) # Convert Install Date column to datetime format
+df['INSTALL DATE'] = df['INSTALL DATE'].dt.strftime('%m-%d-%Y') # Format date as mm-dd-yyyy
+
+max_runtimes = df.groupby('Customer')['Runtime'].max()
+
+# Create a pivot table from the DataFrame
+pivot_table = pd.pivot_table(df, index=['Customer'], values=['Installs', 'Runtime','R/NR/Waiting', 'INSTALL DATE'], aggfunc={'Runtime': 'mean','R/NR/Waiting': lambda x: sum(x == 'NR'),'Installs': 'nunique', 'INSTALL DATE': 'max'}).reset_index()
+  
+# Add the max_runtimes variable to the pivot table
+pivot_table['Runtime'] = pivot_table['Runtime'].round()
+pivot_table = pivot_table.merge(max_runtimes, on='Customer', how='left')
+pivot_table = pivot_table.rename(columns={'Runtime_x': 'Average Runtime'})
+pivot_table = pivot_table.rename(columns={'Runtime_y': 'Max Runtime'})
+# Rename columns
+pivot_table = pivot_table.rename(columns={'R/NR/Waiting': 'Failures'})
+pivot_table = pivot_table.rename(columns={'INSTALL DATE': 'First Install'})
 
 
-# convert the customer names to the required format for dcc.Dropdown options
+
+# Reorder the columns of the pivot table
+#pivot_table = pivot_table[['Customer', 'Installs', 'Failures', 'Average Runtime', 'Max Runtime', 'First Install']]
+data=df.groupby('Customer').filter(lambda x: (x['R/NR/Waiting'] == 'NR').sum() >= 2)
+customers = data['Customer'].unique()
 options = [{'label': 'All Customers', 'value': 'all'}] + \
           [{'label': customer, 'value': customer} for customer in customers]
-pivot_table = pd.pivot_table(df, index=['CUSTOMER'], values=['WELL NAME', 'Runtime','R/NR/Waiting'], aggfunc={'Runtime': 'mean','R/NR/Waiting': lambda x: sum(x == 'NR'),'WELL NAME': 'nunique'}).reset_index()
-pivot_table = pivot_table.reindex(columns=['CUSTOMER','WELL NAME', 'R/NR/Waiting', 'Runtime'])
-pivot_table = pivot_table.rename(columns={'CUSTOMER': 'Customer'})
-pivot_table = pivot_table.rename(columns={'WELL NAME': 'Installs'})
-pivot_table['Runtime'] = pivot_table['Runtime'].round()
-pivot_table = pivot_table.rename(columns={'Runtime': 'Average Runtime'})
-pivot_table = pivot_table.rename(columns={'R/NR/Waiting': 'Failures'})
-
-
-data=df.groupby('CUSTOMER').filter(lambda x: (x['R/NR/Waiting'] == 'NR').sum() >= 1)
-customers = data['CUSTOMER'].unique()
 app = dash.Dash(__name__)
 server = app.server
 dash_table = dash_table.DataTable(
@@ -41,12 +50,13 @@ dash_table = dash_table.DataTable(
 )
 
 app.layout = html.Div(
-    style={'backgroundColor': '#b22222', 'height': '120px'},
+    style={'backgroundColor': '#E00000', 'height': '75px'},
+    
     children=[
 
         html.Hr(),
         html.H1('Summit ESP- A Halliburton Service: Geothermal Dashboard',
-                style={"text-align": "center", "font-size": "3rem"}),
+                style={"text-align": "center", "font-size": "2rem"}),
 
         dcc.Dropdown(
             id='customer-dropdown',
@@ -80,7 +90,7 @@ app.layout = html.Div(
 def update_pie_charts(selected_customer):
     
     if selected_customer != 'all':
-        filtered_data = data[data['CUSTOMER'] == selected_customer]
+        filtered_data = data[data['Customer'] == selected_customer]
     else:
         filtered_data=data
     failure_points = filtered_data['Failure Points'].value_counts()
